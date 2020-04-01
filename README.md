@@ -14,5 +14,5 @@ All data needed for the scripts is available for download at the 'data/mets_data
 
 
 Contact:
-s.garciam@idibell.cat
+s.garciam@idibell.cat,
 rebecasanz@iconcologia.net
