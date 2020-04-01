@@ -1,0 +1,140 @@
+---
+title: "Liu et al. analysis"
+author: "García-Mulero S"
+date: "3/31/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load data
+```{r}
+clin <- read.delim("data/liu_clinical.txt", sep="\t", header=T, stringsAsFactors = F)
+ex <- read.table("data/liu_expression_logTPM.txt", sep = "\t", header = T, stringsAsFactors = F)
+```
+
+## Calculate GSVA
+```{r cars}
+load("data/pathways_for_gsva_mets.Rdata")
+# How many of my gene IDs are in the Pathways Identifiers?
+sapply(1:length(Pathways), function(i) paste0(names(Pathways)[[i]], " ", sum(Pathways[[i]] %in% rownames(ex))))
+
+# GSVA
+library(GSVA)
+GSVA <- gsva(expr=as.matrix(ex), gset.idx.list=Pathways, method="gsva")
+dim(GSVA); dim(clin)
+pathway_names <- c("IFN Gamma", "Antigen processing and presentation", "CTLA4 Signalling", "PDL1 Signalling", "Inflammatory response Up", "Leukocyte migration", "Acute inflammatory response Up", "Chronic inflammatory response Up", "Regulation of cytokine production", "JAK/STAT signalling", "IFN Alpha", "Adaptive immune response", "Cytokine production", "Macrophage activation", "Mastocytes activation", "Myeloid cells activation", "Natural killers mediated immunity", "Cytokines production Immune response", "Myeloid leukocyte cytokines Immmune response", "Regulation of Thelp 1 Immune response", "Regulation of Type 2 Immune Response", "T cell medidated Immunity", "Tolerance Induction", "Immunoscore signature")
+rownames(GSVA) <- pathway_names
+
+```
+
+
+## Creta Immuneclusters
+```{r}
+data.st <- as.matrix(t(GSVA))
+
+# Hierarchical clustering 
+d <- dist(data.st, method = "euclidean") # distance matrix
+hcl1 <- hclust(d, method="ward.D2") # generate clustering
+
+ImmuneCluster <- cutree(hcl1, k=3)
+table(ImmuneCluster)
+boxplot(as.numeric(ex["CD74",colnames(ex) %in% names(ImmuneCluster[ImmuneCluster==1])]),
+        as.numeric(ex["CD74",colnames(ex) %in% names(ImmuneCluster[ImmuneCluster==2])]),
+        as.numeric(ex["CD74",colnames(ex) %in% names(ImmuneCluster[ImmuneCluster==3])]))
+
+ImmuneCluster[ImmuneCluster==1] = "Low"
+ImmuneCluster[ImmuneCluster==2] = "Medium"
+ImmuneCluster[ImmuneCluster==3] = "High"
+
+identical(clin$Patient_ID, names(ImmuneCluster))
+clin$cluster <- ImmuneCluster
+table(clin$cluster)
+clin$cluster <- factor(clin$cluster, levels=c("Low", "Medium", "High"))
+
+```
+
+## Survival analysis
+```{r}
+library(coxphf); library(survival); library(survminer)
+table(clin$Tx) # son los dos anti-PD1 por tanto sirven juntos
+
+
+### ---------------------------------------------------
+# OS
+summary(as.numeric(clin$OS), exclude=NULL)
+labels$OS.Status <- as.numeric(as.character(labels$dead))
+
+# filter NA
+labels <- labels[!is.na(labels$OS),]
+labels$OS.Months <- as.numeric(as.character((labels$OS)))/30
+summary(labels$OS.Months)
+
+# fit the model
+fit <- survfit(Surv(OS.Months, OS.Status) ~ cluster, data=labels)
+fit
+
+# cox model
+cox <- coxph(Surv(OS.Months, OS.Status) ~ cluster,  data=labels)
+summary(cox);  
+
+km <- ggsurvplot(fit=fit, data=labels, color="cluster", 
+                  font.main = c(14, "plain", "black"),
+                  font.x = c(12, "plain", "black"),
+                  font.y = c(12, "plain", "black"),
+                  pval = TRUE, 
+                  legend.title = "ImmuneCluster",
+                  font.legend = c(12, "plain", "black"), 
+                  palette=c("grey80", "grey60", "grey40"),
+                  ylab="Overall survival probability"); 
+
+
+png("~/Desktop/eris-tmp/revision_mets/def2/Figure_6A.tiff", 
+     height=3.5, width=4.5,  res = 600, units="in")      
+km$plot 
+dev.off()
+```
+
+### ImmuneCluster vs Anatomical Location
+```{r}
+table(labels$'biopsy site_categ')
+
+# create new variable
+labels$Sample_location <- labels$'biopsy site_categ'
+table(labels$cluster, labels$Sample_location)
+table <- table( labels$cluster, labels$Sample_location)
+
+# chi-square test 
+chisq_res <- chisq.test(table)
+chisq_res
+chisq_res$expected # expected values <5 --> Fisher's exact test
+
+# fisher exact test
+fisher_res <- fisher.test(table)
+fisher_res
+fisher_res$p.value
+
+### Plot percentages
+table <- as.matrix(t(table(labels$cluster, labels$Sample_location)))
+perc_table <- prop.table(table,margin=1)*100
+cont_plot <- melt(perc_table)
+colnames(cont_plot) <- c("Sample.location", "ImmuneCluster", "value")
+cont_plot$ImmuneCluster <- factor(cont_plot$ImmuneCluster, 
+  levels=c("Low", "Medium", "High"))
+
+# plot 
+barplot <- ggplot(data = cont_plot, aes(x = Sample.location, y = value, fill = ImmuneCluster)) + 
+  geom_bar(stat = 'identity') +  
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  labs(y = "Frequency(%)")
+
+png("~/Desktop/eris-tmp/revision_mets/def2/Figure_6B.tiff", 
+     units="in", width=5, height=3.5, res=600)
+barplot + scale_fill_manual(values=c("grey90", "grey60", "grey40"))
+dev.off()
+```
+
+

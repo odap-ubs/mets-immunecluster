@@ -1,0 +1,70 @@
+---
+title: "ImmuneCluster"
+author: "García-Mulero S"
+date: "3/30/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Geneset analysis and ImmuneCluster classification
+
+Load data  
+```{r}
+infoClin <- read.delim("data/mets_infoClin.txt", sep="\t", header=T, stringsAsFactors = F)
+infoClin[0:5, ]; dim(infoClin)
+ex <- read.table("data/mets_expression_combat.txt", sep="\t", header=T, stringsAsFactors = F)
+ex[0:5, 0:5]; dim(ex)
+```
+
+Load pathways
+```{r}
+load("data/pathways_for_gsva_mets.Rdata") # genesets manually selected
+
+# How many of my gene IDs are in common with the Pathways Genes?
+sapply(1:length(Pathways), function(i) 
+	  paste0(names(Pathways)[[i]], " ", 
+		sum(Pathways[[i]] %in% rownames(ex)), "/", 
+		length(Pathways[[i]])))
+```
+
+
+Load libraries
+```{r}
+library(GSVA); library(reshape)
+```
+
+Perform GSVA function
+```{r}
+GSVA <- gsva(expr=as.matrix(ex), gset.idx.list=Pathways, 
+  verbose=FALSE, mx.diff=1, method="gsva")
+pathway_names <- c("IFN Gamma", "Antigen processing and presentation", "CTLA4 Signalling", "PDL1 Signalling", "Inflammatory response Up", "Leukocyte migration", "Acute inflammatory response Up", "Chronic inflammatory response Up", "Regulation of cytokine production", "JAK/STAT signalling", "IFN Alpha", "Adaptive immune response", "Cytokine production", "Macrophage activation", "Mastocytes activation", "Myeloid cells activation", "Natural killers mediated immunity", "Cytokines production Immune response", "Myeloid leukocyte cytokines Immmune response", "Regulation of Thelp 1 Immune response", "Regulation of Type 2 Immune Response", "T cell medidated Immunity", "Tolerance Induction", "Immunoscore signature", "MHC_Class_II")
+rownames(GSVA) <- pathway_names
+write.table(GSVA, file="data/mets_gsva_scores.txt", sep="\t", col.names = T, row.names = T, quote=F)
+```
+
+
+Create ImmuneClusters
+```{r}
+data.st <- as.matrix(t(GSVA))
+
+### Create three groups of samples 
+d <- dist(data.st, method = "euclidean") # distance matrix
+hcl1 <- hclust(d, method="ward.D2") # generate clustering
+
+# Immuneclusters
+ImmuneCluster[ImmuneCluster==1] = "High"
+ImmuneCluster[ImmuneCluster==2] = "Low"
+ImmuneCluster[ImmuneCluster==3] = "Medium"
+table(ImmuneCluster)
+
+# add to labels
+identical(as.character(names(ImmuneCluster)), as.character(infoClin$GEO_ID))
+infoClin$cluster <- ImmuneCluster
+
+# save
+write.table(infoClin, file="data/mets_infoClin_cluster.txt", col.names = T, row.names = T, quote=F)
+```
+

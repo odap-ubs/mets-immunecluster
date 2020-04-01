@@ -1,0 +1,348 @@
+---
+title: "Figures"
+knit: (function(input_file, encoding) {
+  out_dir <- 'docs';
+  rmarkdown::render(input_file,
+ encoding=encoding,
+ output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
+author: "García-Mulero"
+date: "3/30/2020"
+output: html_document
+---
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load data
+```{r}
+infoClin <- read.delim("~/Desktop/eris-tmp/revision_mets/data/mets_infoclin.txt", header=T, sep="\t", stringsAsFactors = F)
+ex <- read.table("~/Desktop/eris-tmp/revision_mets/data/mets_expression_combat.txt", sep="\t", header=T, stringsAsFactors = F)
+
+# parse infoClin
+infoClin$CANCER_TYPE2[infoClin$CANCER_TYPE=="breast"] <- "Breast"
+infoClin$CANCER_TYPE2[infoClin$CANCER_TYPE=="skin"] <- "Skin melanoma"
+infoClin$CANCER_TYPE2[infoClin$CANCER_TYPE=="prostate"] <- "Prostate"
+infoClin$CANCER_TYPE2[infoClin$CANCER_TYPE=="colorectal"] <- "Colorectal"
+infoClin$CANCER_TYPE2[infoClin$CANCER_TYPE=="lung"] <- "NSCLC"
+infoClin$CANCER_TYPE2[infoClin$CANCER_TYPE=="kidney"] <- "Kidney"
+
+
+```
+
+Load packages
+```{r, echo=FALSE}
+require(reshape)
+library(ggplot2)
+library(gplots)
+library(ggpubr)
+library(dplyr)
+library(pheatmap)
+```
+
+## Figure 2
+
+```{r Figure2}
+ips <- read.table("~/Desktop/eris-tmp/revision_mets/data/IPS_scores_mets.txt", sep="\t", header=T, stringsAsFactors = F)
+labels_ips <- merge(infoClin, t(ips), by.x="GEO_ID", by.y="row.names")
+head(labels_ips)
+
+# 2A
+compare_means(AZ ~ MET_SITE,  data = labels_ips, method = "kruskal.test")
+compare_means(AZ ~ MET_SITE,  data = labels_ips)
+my_comparisons <- list( c("liver", "lung"), c("lung", "brain"), c("lung", "bone"))
+
+AZ <- ggplot(labels_ips, aes(x=MET_SITE, y=AZ)) +
+  geom_boxplot(color="black", outlier.shape=NA) +
+  geom_jitter(position=position_jitter(0.35), size=1, 
+              aes(x=MET_SITE, y=AZ, color=CANCER_TYPE2, shape=CANCER_TYPE2)) +
+  labs(y = "IPS z-score", x = "Metastatic site", fill="x") +
+  theme_classic() +
+  scale_color_manual(values=c("black", "grey80","grey50","black","grey80","grey50"), name = "Primary site")+
+  scale_shape_manual(values=c(15, 16, 17, 3,5,6), name = "Primary site")+
+  theme(plot.title = element_text(hjust = 0.5, size=10, face="bold"), panel.spacing = unit(1, "lines"),
+        axis.text.x = element_text(size=10),
+        axis.text.y = element_text(size=10),
+        strip.text.x = element_text(size = 10),
+        strip.text.y = element_text(size = 12), 
+        legend.text=element_text(size=10),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(colour = "white", fill=NA, size=0.3),
+        strip.background = element_rect(colour = "white", fill = "white")) +
+  stat_compare_means(comparisons = my_comparisons, size=3.2) +
+  stat_compare_means(method="kruskal.test", label="p.format", size=3.5) 
+AZ
+
+# jpeg("~/Desktop/eris-tmp/revision_mets/def2/Figure_2A.jpg", 
+#     res = 600, bg = "white", width = 4.5, height = 3, units = "in")
+# AZ
+# dev.off()
+
+# 2B
+labels_ips <- melt(labels_ips)
+table(labels_ips$variable)
+
+IPS <- ggplot(labels_ips[!labels_ips$variable=="AZ" & !labels_ips$variable=="IPS" ,], 
+              aes(x=MET_SITE, y=value)) +
+  geom_boxplot(color="black", outlier.shape = NA) +
+  facet_wrap(~variable, scales="free") + # , strip.position = "left")  +
+  geom_jitter(position=position_jitter(0.25), size=1, 
+              aes(x=MET_SITE, y=value, color =CANCER_TYPE2, shape=CANCER_TYPE2)) +
+  labs(title="", x="", y = "z-score") +
+  theme_classic() +
+  scale_shape_manual(values=c(15, 16, 17, 3,5,6), name = "Primary site")+
+  scale_color_manual(values=c("black", "grey80","grey50","black","grey80","grey50"),
+                     name="Primary site") +
+  theme_classic() +
+theme(plot.title = element_text(hjust = 0.5, size=10, face="bold"), panel.spacing = unit(1, "lines"),
+      axis.text.x = element_text(size=10),
+      axis.text.y = element_text(size=10),
+      strip.text.x = element_text(size = 10),
+      strip.text.y = element_text(size = 10),
+      legend.text=element_text(size=10),
+      strip.placement = "outside",  
+      panel.grid.major = element_blank(), 
+      panel.grid.minor = element_blank(),
+      panel.background = element_rect(colour = "black", size=0.5),
+      strip.background = element_rect(colour = "white", size=0.5)) +
+  stat_compare_means(method="kruskal.test", label="p.format", size=3.5)
+IPS
+
+# png("~/Desktop/eris-tmp/revision_mets/def2/Figure_2B.tiff", 
+#     res = 600, bg = "white", width = 6.5, height = 5, units = "in")
+# IPS
+# dev.off()
+
+```
+
+## Figure 3
+
+```{r Figure3}
+mcp_est <- read.table("~/Desktop/eris-tmp/revision_mets/data/mcp_est_scores.txt", sep="\t", header=T, stringsAsFactors = F)
+labels_est <- merge(infoClin, t(mcp_est[11:14,]), by.x="GEO_ID", by.y="row.names")
+head(labels_est)
+labels_est <- melt(labels_est)
+levels(labels_est$variable)[levels(labels_est$variable)=="StromalScore"] <- "Stromal Score"
+levels(labels_est$variable)[levels(labels_est$variable)=="ImmuneScore"] <- "Immune Score"
+levels(labels_est$variable)[levels(labels_est$variable)=="ESTIMATEScore"] <- "ESTIMATE Score"
+levels(labels_est$variable)[levels(labels_est$variable)=="TumorPurity"]   <- "Tumor Purity"
+
+# Plot
+EST <- ggplot(labels_est, aes(x=MET_SITE, y=value)) +
+		    geom_boxplot(color="black", outlier.shape = NA) +
+		    facet_wrap(~variable, ncol=4, scale="free") +
+		    geom_jitter(position=position_jitter(0.25), size=1, 
+		            aes(x=MET_SITE, y=value, color =CANCER_TYPE2, shape=CANCER_TYPE2)) +
+		    labs(  x="", y = "z-score") +
+        theme_classic() +
+        scale_shape_manual(values=c(15, 16, 17, 3,5,6), name = "Primary site")+
+        scale_color_manual(values=c("black", "grey80","grey50","black","grey80","grey50"),
+                           name="Primary site") +
+        theme(plot.title = element_text(hjust = 0.5, size=12, face="bold"), 
+              panel.spacing = unit(1, "lines"),
+              axis.text.x = element_text(size=10),
+              axis.text.y = element_text(size=12),
+              strip.text.x = element_text(size = 12),
+              strip.text.y = element_text(size = 12),
+              legend.text=element_text(size=12),
+              panel.grid.major = element_blank(), 
+              panel.grid.minor = element_blank(),
+              panel.background = element_rect(colour = "black", fill=NA, size=0.5),
+              strip.background = element_rect(colour = "white", size=0.5)) + 
+        stat_compare_means(method = "kruskal.test", label="p.format", size=3.2, label.x=1.7)
+EST
+# png("~/Desktop/eris-tmp/revision_mets/def2/Figure_3A.tiff", 
+#   res = 600, bg = "white", width =12, height = 3.5, units = "in")
+# EST
+# dev.off()
+
+# 3B
+labels_mcp <- merge(infoClin, t(mcp_est[1:10,]), by.x="GEO_ID", by.y="row.names")
+labels_mcp <- melt(labels_mcp)
+
+MCP <- ggplot(labels_mcp, aes(x=MET_SITE, y=value)) +
+            geom_boxplot(color="black", outlier.shape = NA) +
+            facet_wrap(~variable, scale="free", ncol=3) +
+            geom_jitter(position=position_jitter(0.25), size=0.7, 
+            aes(x=MET_SITE, y=value, color =CANCER_TYPE2, shape=CANCER_TYPE2)) +
+            labs(x="", y = "abundance score") +
+            theme_classic() +
+            scale_shape_manual(values=c(15, 16, 17, 3,5,6), name = "Primary site")+
+            scale_color_manual(values=c("black", "grey80","grey50","black","grey80","grey50"),
+                     name="Primary site") +
+            theme(plot.title = element_text(hjust = 0.5, size=12, face="bold"), 
+                  panel.spacing = unit(1, "lines"),
+            axis.text.x = element_text(size=11),
+            	axis.text.y = element_text(size=12),
+            	strip.text.x = element_text(size = 11),
+            	strip.text.y = element_text(size = 12),
+            	legend.text=element_text(size=12),
+            	legend.title=element_text(size=12), 
+            	panel.grid.major = element_blank(), 
+            	panel.grid.minor = element_blank(),
+            panel.background = element_rect(colour = "black", size=0.5),
+            strip.background = element_rect(colour = "white", size=0.5)) +
+          stat_compare_means(method = "kruskal.test", label="p.format", size=4)
+MCP
+# png("~/Desktop/eris-tmp/revision_mets/def2/Figure_3B.tiff", 
+#   res = 600, bg = "white", width = 10, height = 8, units = "in")
+# MCP
+# dev.off()
+```
+
+### Figure 4
+```{r}
+# 4A
+GSVA <- read.table("~/Desktop/eris-tmp/revision_mets/data/mets_gsva_scores.txt", header=T, sep="\t", stringsAsFactors = F)
+data.st <- as.matrix(t(GSVA))
+
+# add to labels
+identical(as.character(rownames(data.st)), as.character(infoClin$GEO_ID))
+bk <- c(seq(min(as.numeric(data.st)),max(as.numeric(data.st)), length=100))
+
+# SAMPLES: Calculate distance and cluster between samples using Ward linkage
+
+      # Ward Hierarchical Clustering
+      d <- dist(data.st, method = "euclidean") # distance matrix
+      hcl1 <- hclust(d, method="ward.D2") 
+      column_dend = as.dendrogram(hcl1)
+
+
+# GENESETS: Calculate distance between genesets and cluster distance using Ward linkage
+      d <- dist(t(data.st), method = "euclidean") # distance matrix
+      hcl2 <- hclust(d, method="ward.D2") 
+      row_dend = as.dendrogram(hcl2)
+
+labels <- infoClin
+# Data frame with column annotations
+mat_col <- data.frame('Primary site' = labels$CANCER_TYPE2, 
+                      'Metastatic site'=labels$MET_SITE, 
+                      'Immune Cluster'=labels$cluster)
+rownames(mat_col) <- rownames(data.st)
+colnames(mat_col) <- c("Primary site", "Metastatic site", "Immune Cluster")
+
+# List with colors for each annotation.
+mat_colors <- list('Primary site' =  c("#9E0142", "#5E4FA2","#3288BD","#C45735","#66C2A5","#CEB944"),
+	'Metastatic site'=c("#7570B3", "#E7298A", "sienna1", "#66A61E"),
+	'Immune Cluster' = c( "grey90","grey60", "grey40" ) )
+names(mat_colors$'Primary site') <- unique(labels$CANCER_TYPE2)
+names(mat_colors$'Metastatic site') <- unique(labels$MET_SITE)
+names(mat_colors$'Immune Cluster') <- c("Low", "Medium", "High")
+
+# ---------------
+# Rotate function
+# ---------------
+require(dendsort); require(dendextend)
+rotate.dendrogram2 <- function(x, order, ...)
+  {
+    if(missing(order)) { # if order is missing - return the same tree.
+      warning("'order' parameter is missing, returning the tree as it was.")
+      return(x)  
+    }
+    labels_x <- labels(x) 
+    order_x <- order.dendrogram(x)
+    number_of_leaves <- length(order_x)
+    if(!is.numeric(order)) {
+      order <- as.character(order)
+      if(length(intersect(order, labels_x)) != number_of_leaves) {
+        stop("'order' is neither numeric nor a vector with ALL of the labels (in the order you want them to be)")
+      }
+      order <- match(order, labels_x)
+    }
+    weights <- seq_len(number_of_leaves)
+    weights_for_order <- numeric(number_of_leaves)
+    weights_for_order[order_x[order]] <- weights
+    reorder(x, weights_for_order, mean,...)
+  }
+# ---------------
+
+rotate <- function(...) as.hclust(rotate.dendrogram2(as.dendrogram(hcl1),20))
+hcl1.1 <- as.dendrogram(hcl1) %>% sort %>% rotate(medium)
+
+
+heatmap <- pheatmap(mat = t(data.st),
+         color = colorpanel(n=length(bk)-1, low="blue", mid="snow", high="red3"),
+         border_color = NA,show_colnames = FALSE,show_rownames = TRUE,
+         cluster_cols = as.hclust(hcl1.1), cluster_rows = hcl2,
+         cutree_cols = 3,  annotation_col = mat_col, annotation_colors = mat_colors,
+         drop_levels = TRUE, fontsize = 14, cellwidth=1.2)
+
+heatmap
+
+# png("~/Desktop/eris-tmp/revision_mets/def2/Figure_4A.tiff", 
+#     units="in", width=14, height=7, res=600)
+# heatmap
+# dev.off()
+
+# 4B
+
+data <- labels
+cont_table <- as.matrix(t(table(data$cluster, data$MET_SITE)))
+perc_table <- prop.table(cont_table,margin=2)*100
+perc_table <- melt(perc_table)
+colnames(perc_table) <- c("MET_SITE", "IMMUNE_PROFILE", "value")
+perc_table$IMMUNE_PROFILE <- factor(perc_table$IMMUNE_PROFILE, levels=c("Low", "Medium", "High"))
+perc_table$MET_SITE <- factor(perc_table$MET_SITE, levels=c("bone", "brain", "liver", "lung"))
+
+Var1 <- c("#7570B3", "#E7298A", "sienna1", "#66A61E")
+names(Var1) <- c("bone", "brain", "liver", "lung")
+
+prop <- ggplot(data = perc_table, aes(x = MET_SITE, y = value, fill = MET_SITE)) + 
+  geom_bar(stat = 'identity', position = position_dodge()) +  
+  labs(x= '', y = "% samples")  +
+  facet_grid(~IMMUNE_PROFILE)  + scale_fill_manual(values=Var1) +
+  theme_classic() +
+  theme(panel.spacing = unit(1, "lines"),
+		axis.text.x = element_text(size=10),
+		axis.text.y = element_text(size=12),
+		strip.text.x = element_text(size = 11),
+		strip.text.y = element_text(size = 10),
+		legend.text=element_text(size=12),
+		legend.title=element_text(size=12), 
+		panel.grid.major = element_line(colour = "grey95"), 
+		panel.grid.minor = element_line(colour = "grey95"),
+		panel.background = element_rect(colour = "white", fill=NA, size=0.5),
+		strip.background = element_rect(colour = "white", fill = "white"))
+prop + guides(fill=guide_legend(title="Metastatic\nsite"))
+
+# png("~/Desktop/eris-tmp/revision_mets/def2/Figure_4B.tiff", 
+#     units="in", width=6.5, height=3, res=600)
+# print(prop + guides(fill=guide_legend(title="Metastatic\nsite")))
+# dev.off()
+```
+
+### Figure 5
+```{r}
+tis <- read.table("~/Desktop/eris-tmp/revision_mets/data/mets_tis_signature.txt", sep="\t", header=T, stringsAsFactors = F)
+head(tis)
+labels_tis <- merge(infoClin, tis, by.x="GEO_ID", by.y="row.names")
+labels_tis$cluster <- factor(labels_tis$cluster, levels=c("Low", "Medium", "High"))
+
+plotTIS <- ggplot(labels_tis, aes(x=cluster, y=V1)) +
+			geom_boxplot(color="black", outlier.shape = NA) +
+			geom_jitter(position=position_jitter(0.25), size=0.7, 
+						aes(x=cluster, y=V1, color =MET_SITE)) +
+			labs( y = "TIS Score", x= "") +
+			theme_classic() +
+		  	#theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	        scale_color_manual(values=c( "#7570B3", "#E7298A", "sienna1", "#66A61E" ), name="Metastatic site") +
+			geom_hline(yintercept=0.075, linetype="dashed", 
+            color = "red", size=0.5) +
+    		theme(plot.title = element_text(hjust = 0.5, size=8, face="bold"), panel.spacing = unit(1, "lines"),
+				axis.text.x = element_text(size=10),
+	  			axis.text.y = element_text(size=10),
+	  			strip.text.x = element_text(size = 10),
+	  			strip.text.y = element_text(size = 10), 
+	  			legend.text=element_text(size=10),
+	  			panel.grid.major = element_blank(), 
+	  			panel.grid.minor = element_blank(),
+				panel.background = element_rect(colour = "white", fill=NA, size=0.3),
+				strip.background = element_rect(colour = "white", fill = "white")) +
+    stat_compare_means(method = "kruskal.test", label="p.format", size=3)
+plotTIS
+
+# png("~/Desktop/eris-tmp/revision_mets/def2/Figure_5.jpg", 
+#   res = 600, bg = "white", width = 4, height = 3, units = "in")
+# plotTIS
+# dev.off()
+```
