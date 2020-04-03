@@ -341,6 +341,7 @@ plotTIS <- ggplot(labels_tis, aes(x=cluster, y=V1)) +
     stat_compare_means(method = "kruskal.test", label="p.format", size=3)
 plotTIS
 
+
 # png("~/Desktop/eris-tmp/revision_mets/def2/Figure_5.jpg", 
 #   res = 600, bg = "white", width = 4, height = 3, units = "in")
 # plotTIS
