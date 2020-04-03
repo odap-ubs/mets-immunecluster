@@ -55,6 +55,7 @@ d <- dist(data.st, method = "euclidean") # distance matrix
 hcl1 <- hclust(d, method="ward.D2") # generate clustering
 
 # Immuneclusters
+ImmuneCluster <- cutree(hcl1, k=3)
 ImmuneCluster[ImmuneCluster==1] = "High"
 ImmuneCluster[ImmuneCluster==2] = "Low"
 ImmuneCluster[ImmuneCluster==3] = "Medium"

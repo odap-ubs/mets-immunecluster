@@ -47,9 +47,10 @@ ipsmap<- function (x) {
 }
 # expression data
 gene_expression <- ex
-sample_names<-names(gene_expression)
+gene_expression <- as.data.frame(ex_comb_b2)
+sample_names<-colnames(gene_expression)
 ## Read IPS genes and corresponding weights from tab-delimited text file "IPS_genes.txt"
-IPSG<-read.table("IPS_genes.txt",header=TRUE, sep="\t", dec = ".",check.names=FALSE)
+IPSG<-read.table("data/IPS_genes.txt",header=TRUE, sep="\t", dec = ".",check.names=FALSE)
 unique_ips_genes<-as.vector(unique(IPSG$NAME))
 
 ##add gene values for genes not in the expression matrix
